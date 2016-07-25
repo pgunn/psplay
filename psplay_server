@@ -34,15 +34,18 @@ def main():
 		if hosts_same(hosts, oldhosts):
 			continue
 		elif num_hosts_same(hosts, oldhosts):
-			successors_keyswap(skey, hosts, oldhosts)
-			cache_setkey(skey, hosts, cfg.cachefile)
+			cache = skey_getcache(cfg.cachefile)
+			successors_keyswap(skey, cache, hosts, oldhosts) # updates cache obj and mtags
+			cache_store(cache, cfg.cachefile)
 		else:
-			rekey_all_hosts(skey, hosts)
-			cache_setkey(skey, hosts, cfg.cachefile)
+			cache = skey_getcache(cfg.cachefile)
+			rekey_all_hosts(skey, hosts, cache) # updates cache obj
+			cache_store(cache, cfg.cachefile)
 	release_lockfile()
 
 def handle_args():
 	optmsgs = {
+	"cachefile" : "JSON storage for local cache",
 	"lockfile" : "Lockfile",
 	}
 	parser = argparse.ArgumentParser()
@@ -81,19 +84,24 @@ def get_hosts_for_skey_mtag(skey):
 	""" RO """
 	pass
 
-def successors_keyswap(skey):
-	""" RW """
+def successors_keyswap(skey, cache, hosts, oldhosts):
+	""" RW, rewrite cache object and mtag-sync the changes
+	The purpose of this is, for every host in hosts that doesn't exist
+        in oldhosts, designate it as the unique successor of a host in oldhosts
+	that isn't in newhosts, giving it the same offset as what it replaces.
+	We rewrite the cache object and update mtags as we go """
 	pass
 
-def rekey_all_hosts(skey, hosts):
-	""" RW """
+def rekey_all_hosts(skey, hosts, cache):
+	""" RW, rewrite cache object and mtag-sync as we go.
+	This is used when we need to re-offset everything. """
 	pass
 
 #####################
 # cache operations
 #
-# The cache is a json file with a simple
-# key => HOSTLIST
+# The cache is a json file with the following structure
+# key => [host => offset_percent]
 # hash stored inside
 
 def skey_getcache(cachejson):
@@ -105,14 +113,12 @@ def skey_getcache(cachejson):
 def get_hosts_for_skey_cache(skey, cachejson):
 	""" RO """
 	cache = skey_getcache(cachejson)
-	return cache[skey]
+	return cache[skey].keys()
 
-def cache_setkey(skey, vals, cachejson):
-	""" RW """
-	cache = skey_getcache(cachejson)
-	cache[skey] = vals
-	with open(cachejson, 'a') as json_d:
-		json.dump(cache, json_d)
+def cache_store(cacheobj, cachejson):
+	""" W """
+	with open(cachejson, 'w') as json_d:
+		json.dump(cacheobj, json_d)
 		json_d.close()
 
 #####################

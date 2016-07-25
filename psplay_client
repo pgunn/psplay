@@ -1,0 +1,113 @@
+#!/usr/bin/python
+
+import argparse
+import subprocess
+import sys
+
+###########
+# psplay_client is the "client" component of psplay - it runs frequently from
+# cron, and iterates over all registered splaykeys for this system. Registered
+# by config management.
+#
+# For each such splaykey:
+#	Read the old attribute from the local cache (if present!)
+#	Read the new attribute from mdb (if present!)
+#	Update the local cache
+#	Reason about moratoriums statefully
+#	Determine from those when it should next be scheduled
+#	Determine if it already is so scheduled
+#	If it is:
+#		Everything is great
+#	Otherwise:
+#		Cancel any existing scheules of it
+#		Schedule it correctly
+#
+# Data it works with:
+#	machine tagging database - reads
+#	moratorium file
+#	old attribute cache
+#	at - reads, schedules, cancels
+
+def main():
+	cfg = handle_args()
+	get_lockfile()
+	for skey in get_skey_list():
+		# Process this host's skeys
+		expire_old_moratoriums(skey)
+		oldval = get_offset_for_skey_cache(skey)
+		newval = get_offset_for_skey_mtag(skey)
+		if oldval != newval: # Be careful comparing fractions!
+			remove_atentry(skey)
+			cache_setval(skey, newval)
+			if newval < oldval:
+				set_moratorium(skey, oldval, newval)
+		if (! in_moratorium(skey)) and (! scheduled(skey)):
+			schedule_atentry(skey)
+	release_lockfile()
+
+def handle_args():
+	pass
+
+
+###################
+# skeylist operations
+
+def get_skey_list():
+	pass
+
+###################
+# moratorium operations
+
+def set_moratorium(skey, oldval, newval):
+	pass
+
+def expire_old_moratoriums(skey):
+	pass
+
+def in_moratorium(skey):
+	pass
+
+###################
+# at operations
+
+def remove_atentry(skey):
+	pass
+
+def schedule_atentry(skey):
+	offset = get_skey_value(skey) * def_splay_length(skey)
+	pass
+
+def scheduled(skey):
+	""" Boolean, true if there's already an "at" for this service """
+	pass
+
+###################
+# cfgdir operations
+
+###################
+# local mtag cache operations
+
+def get_offset_for_skey_cache(skey):
+	pass
+
+def cache_setval(skey, newval):
+	pass
+
+###################
+# mtag operations
+
+def get_offset_for_skey_mtag(skey):
+	pass
+
+###################
+# lockfile operations
+
+def get_lockfile():
+	pass
+
+def release_lockfile():
+	pass
+
+###################
+
+main()

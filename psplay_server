@@ -1,0 +1,129 @@
+#!/usr/bin/python
+
+import argparse
+import json
+import subprocess
+import sys
+
+############
+# psplay_server is the "server" component of psplay - it runs periodically
+# from cron, and iterates over all registered splaykeys.
+#
+# For each splaykey:
+#   gets a list of servers that are part of the fleet for a service, and
+#   if that has changed:
+#   1) If a host has been replaced but the number of servers in the fleet stays
+#	the same, give the replacement host the splaykey that its
+#	predecessor had. This avoids the need to shift times around.
+#   2) If a host has been removed or added, renumber everybody! We change host
+#	attributes immediately (could stage it, but that'd make this script
+#	more complex and with little benefit - revisit this decision if needed)
+#
+# Data it works with:
+#   machine tagging database - reads and writes, accessible instantly from any
+#	host. Let's not depend on any particular one.
+#   cache from last mdb read/write
+
+def main():
+	cfg = handle_args()
+	get_lockfile(cfg.lockfile)
+	for skey in get_skey_list():
+		# Rebalance global skeys
+		hosts    = get_hosts_for_skey_mtag(skey)
+		oldhosts = get_hosts_for_skey_cache(skey, cfg.cachefile)
+		if hosts_same(hosts, oldhosts):
+			continue
+		elif num_hosts_same(hosts, oldhosts):
+			successors_keyswap(skey, hosts, oldhosts)
+			cache_setkey(skey, hosts, cfg.cachefile)
+		else:
+			rekey_all_hosts(skey, hosts)
+			cache_setkey(skey, hosts, cfg.cachefile)
+	release_lockfile()
+
+def handle_args():
+	optmsgs = {
+	"lockfile" : "Lockfile",
+	}
+	parser = argparse.ArgumentParser()
+	parser.add_argument('--lockfile', help=optmsgs['lockfile'],
+		default='/var/lock/psplay')
+	parser.add_argument('--cachefile', help=optmsgs['cachefile'],
+		default='/var/run/psplay.json')
+	return parser.parse_args()
+
+#####################
+# skeylist operations
+#
+# not sure how I want this to work
+
+def get_skey_list():
+	pass
+
+#####################
+# Hostlist operations
+
+def hosts_same(first, second):
+	# Bool: True if two hostlists are the same
+	# It changes list order, but that is ok
+	first.sort()
+	bar.sort()
+	return foo == bar
+
+def num_hosts_same(first, second):
+	# Bool: True if two hostlists have same number of elements
+	return len(first) == len(second)
+
+#####################
+# mtag operations
+
+def get_hosts_for_skey_mtag(skey):
+	""" RO """
+	pass
+
+def successors_keyswap(skey):
+	""" RW """
+	pass
+
+def rekey_all_hosts(skey, hosts):
+	""" RW """
+	pass
+
+#####################
+# cache operations
+#
+# The cache is a json file with a simple
+# key => HOSTLIST
+# hash stored inside
+
+def skey_getcache(cachejson):
+	with open(cachejson) as json_d:
+		cache = json.load(json_d)
+		json_d.close()
+	return cache
+
+def get_hosts_for_skey_cache(skey, cachejson):
+	""" RO """
+	cache = skey_getcache(cachejson)
+	return cache[skey]
+
+def cache_setkey(skey, vals, cachejson):
+	""" RW """
+	cache = skey_getcache(cachejson)
+	cache[skey] = vals
+	with open(cachejson, 'a') as json_d:
+		json.dump(cache, json_d)
+		json_d.close()
+
+#####################
+# lockfile operations
+
+def get_lockfile():
+	pass
+
+def release_lockfile():
+	pass
+
+#####################
+
+main()

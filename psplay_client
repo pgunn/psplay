@@ -9,6 +9,16 @@ import sys
 # cron, and iterates over all registered splaykeys for this system. Registered
 # by config management.
 #
+# Operational model:
+#	A splaykey (skey) is used to define host-specific splay for 1+
+#		services that use that splaykey
+#	psplay_client schedules "atservices" at defined times using the
+#		appropriate splaykey and the atservice definition as a factor
+#		for when things run
+#	Splaykeys come from outside the system, and psplay_client responds
+#		to those by adjusting when things run, in a way that's kind to
+#		the reasons people splay in the first place
+#
 # For each such splaykey:
 #	Read the old attribute from the local cache (if present!)
 #	Read the new attribute from mdb (if present!)
@@ -37,12 +47,16 @@ def main():
 		oldval = get_offset_for_skey_cache(skey)
 		newval = get_offset_for_skey_mtag(skey)
 		if oldval != newval: # Be careful comparing fractions!
-			remove_atentry(skey)
 			cache_setval(skey, newval)
+			for service in services_linked_to_key(skey):
+				if atservice_scheduled(skey, service):
+					deschedule_atservice(service)
 			if newval < oldval:
 				set_moratorium(skey, oldval, newval)
-		if (! in_moratorium(skey)) and (! scheduled(skey)):
-			schedule_atentry(skey)
+		if (! in_moratorium(skey)):
+			for service in services_linked_to_key(skey):
+				if !atservice_scheduled(skey, service):
+					schedule_atservice(service)
 	release_lockfile()
 
 def handle_args():
@@ -54,6 +68,26 @@ def handle_args():
 
 def get_skey_list():
 	pass
+
+###################
+# service enumeration
+
+def services_linked_to_key(skey):
+	pass
+
+def deschedule_atservice(service):
+	pass
+
+def schedule_atservice(service):
+	pass
+
+def atservice_scheduled(skey, service):
+	pass
+
+def get_service_offset(skey, service):
+	return (get_skey_value(skey) * get_skey_offset_for_this_host(skey)) +
+		get_service_offset(service)
+
 
 ###################
 # moratorium operations
@@ -69,17 +103,6 @@ def in_moratorium(skey):
 
 ###################
 # at operations
-
-def remove_atentry(skey):
-	pass
-
-def schedule_atentry(skey):
-	offset = get_skey_value(skey) * def_splay_length(skey)
-	pass
-
-def scheduled(skey):
-	""" Boolean, true if there's already an "at" for this service """
-	pass
 
 ###################
 # cfgdir operations

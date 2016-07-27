@@ -23,6 +23,9 @@ import sys
 #   machine tagging database - reads and writes, accessible instantly from any
 #	host. Let's not depend on any particular one.
 #   cache from last mdb read/write
+#
+# The psplay_server only cares about splay keys, not about what clients do with
+# them
 
 def main():
 	cfg = handle_args()

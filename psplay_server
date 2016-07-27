@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import lockfile
 import subprocess
 import sys
 
@@ -29,7 +30,7 @@ import sys
 
 def main():
 	cfg = handle_args()
-	get_lockfile(cfg.lockfile)
+	mylock = get_lockfile(cfg.lockfile)
 	for skey in get_skey_list(cfg.skeyfile):
 		# Rebalance global skeys
 		hosts    = get_hosts_for_skey_mtag(skey)
@@ -44,7 +45,7 @@ def main():
 			cache = skey_getcache(cfg.cachefile)
 			rekey_all_hosts(skey, hosts, cache) # updates cache obj
 			cache_store(cache, cfg.cachefile)
-	release_lockfile()
+	release_lockfile(mylock)
 
 def handle_args():
 	optmsgs = {
@@ -171,11 +172,16 @@ def cache_get_skey_hostval(cache, skey, host):
 #####################
 # lockfile operations
 
-def get_lockfile():
-	pass
+def get_lockfile(lf):
+	# Consider doing a try
+	# Look for LockTimeout
+	# XXX Need the file exist for us to lock it?
+	lock = LockFile(lf)
+	lock.acquire(timeout=30) # seconds
+	return lock
 
-def release_lockfile():
-	pass
+def release_lockfile(lock):
+	lock.release()
 
 #####################
 

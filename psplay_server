@@ -30,7 +30,7 @@ import sys
 def main():
 	cfg = handle_args()
 	get_lockfile(cfg.lockfile)
-	for skey in get_skey_list():
+	for skey in get_skey_list(cfg.skeyfile):
 		# Rebalance global skeys
 		hosts    = get_hosts_for_skey_mtag(skey)
 		oldhosts = get_hosts_for_skey_cache(skey, cfg.cachefile)
@@ -49,6 +49,7 @@ def main():
 def handle_args():
 	optmsgs = {
 	"cachefile" : "JSON storage for local cache",
+	"skeyfile" : "List of service keys to reason about, 1 per line",
 	"lockfile" : "Lockfile",
 	}
 	parser = argparse.ArgumentParser()
@@ -56,6 +57,8 @@ def handle_args():
 		default='/var/lock/psplay')
 	parser.add_argument('--cachefile', help=optmsgs['cachefile'],
 		default='/var/run/psplay.json')
+	parser.add_argument('--skeyfile', help=optmsgs['skeyfile'],
+		default='/var/run/skeys.txt')
 	return parser.parse_args()
 
 #####################
@@ -63,7 +66,7 @@ def handle_args():
 #
 # not sure how I want this to work
 
-def get_skey_list():
+def get_skey_list(skeyfile):
 	pass
 
 #####################
@@ -81,6 +84,42 @@ def num_hosts_same(first, second):
 	return len(first) == len(second)
 
 #####################
+# operations
+def successors_keyswap(skey, cache, hosts, oldhosts):
+	""" RW, Alter cache and mtag store so new hosts will each
+	exactly replace a retired host. This assumes the number of new
+	hosts equals the number of retired hosts. """
+	exclusive_new = set(hosts) - set(oldhosts)
+	exclusive_old = set(oldhosts) - set(hosts)
+	for idx in range(0, len(exclusive_old) - 1):
+		# Copy old to new
+		val = cache_get_skey_hostval(cache, skey, exclusive_old[idx])
+
+		cache_set_skey_hostval(cache, skey, exclusive_new[idx], val)
+		mtag_set_skey_hostval(skey, exclusive_new[idx], val)
+		# Delete old
+		cache_clear_skey_hostval(cache, skey, exclusive_old[idx])
+		mtag_clear_skey_hostval(skey, exclusive_old[idx])
+
+def rekey_all_hosts(skey, hosts, cache):
+	""" RW, rewrite cache object and mtag-sync as we go.
+	This is used when we need to re-offset everything. """
+	num_elems = len(foo)
+	if num_elems == 0:
+		return # Nothing to do, and let's not divide by zero
+	# If we want to avoid the guarantee of one system starting on-the-dot,
+	# we could bump ctr by a random fp-in-range-0-1 value here,
+	# and at the start of the loop reduce ctr by 1 if it's over 1. As a poor
+	# man's modulus. Because offsets on this side of psplay
+	# are subdivisions of "1", that would do the right thing
+	offset = 1 / num_elems
+	ctr = 0
+	for host in hosts:
+		cache_set_skey_hostval(cache, skey, host, ctr)
+		mtag_set_skey_hostval(skey, host, ctr)
+		ctr += offset # Prep for next
+
+#####################
 # mtag operations
 
 def get_hosts_for_skey_mtag(skey):
@@ -94,38 +133,13 @@ def mtag_clear_skey_hostval(skey, host):
 	pass
 
 #####################
-# operations
-def successors_keyswap(skey, cache, hosts, oldhosts):
-	""" RW, Alter cache and mtag store so new hosts will each
-	exactly replace a retired host. This assumes the number of new
-	hosts equals the number of retired hosts. """
-	exclusive_new = set(hosts) - set(oldhosts)
-	exclusive_old = set(oldhosts) - set(hosts)
-	for idx in range(0, len(exclusive_old) - 1):
-		val = cache[skey][exclusive_old[idx]]
-		cache[skey][exclusive_new[idx]] = val
-		del cache[skey][exclusive_old[idx]]
-		mtag_clear_skey_hostval(skey, host)
-		mtag_set_skey_hostval(skey, host, val)
-
-def rekey_all_hosts(skey, hosts, cache):
-	""" RW, rewrite cache object and mtag-sync as we go.
-	This is used when we need to re-offset everything. """
-	num_elems = len(foo)
-	if num_elems == 0:
-		return # Nothing to do, and let's not divide by zero
-	offset = 1 / num_elems
-	ctr = 0
-	for host in hosts:
-		cache[skey][host] = ctr # Update cache
-		mtag_set_skey_hostval(skey, host, val) # Then update mtag
-		ctr += offset # Prep for next
-
-#####################
 # cache operations
 #
 # The cache is a json file with the following structure
-# key => [host => offset_percent]
+# skey => 	[
+#		host = offset_percent,
+#		...
+#		]
 # hash stored inside
 
 def skey_getcache(cachejson):
@@ -144,6 +158,15 @@ def cache_store(cacheobj, cachejson):
 	with open(cachejson, 'w') as json_d:
 		json.dump(cacheobj, json_d)
 		json_d.close()
+
+def cache_clear_skey_hostval(cache, skey, host):
+	del cache[skey][host]
+
+def cache_set_skey_hostval(cache, skey, host, val):
+	cache[skey][host] = val
+
+def cache_get_skey_hostval(cache, skey, host):
+	return cache[skey][host]
 
 #####################
 # lockfile operations

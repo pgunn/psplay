@@ -65,10 +65,15 @@ def handle_args():
 #####################
 # skeylist operations
 #
-# not sure how I want this to work
+# TODO: Filter out blank lines, comments, extraneous whitespace. Validate?
 
 def get_skey_list(skeyfile):
-	pass
+	slist = []
+	with open(skeyfile, 'r') as skeyf:
+		for line in skeyf:
+			line.rstrip()
+			slist[line] = 1
+	return slist.keys()
 
 #####################
 # Hostlist operations
@@ -122,16 +127,31 @@ def rekey_all_hosts(skey, hosts, cache):
 
 #####################
 # mtag operations
+#
+# Here we assume a machine tagging system where:
+# Some nodes have an attribute, and when they do that attribute has a value
+# We assume it's fast to query for nodes by attribute, and fast to retrieve
+# the value of that attribute for a given node
+# And (while the code does not depend on this, it is most useful if true) a
+# host can have zero, one, or many such attributes
+#
+# Intentionally making this a gate to outside this code so people can
+# mix their (usually internal) infrastructure code with my code
+# TODO Rework this to use commands defined by a dotfile, or figure out a good
+#	mechanism to do that via a library
 
 def get_hosts_for_skey_mtag(skey):
 	""" RO """
-	pass
+	(ret, hosts) = runcmd_with_output(['./get_hosts_for_skey_mtag', skey])
+	# TODO ...
 
 def mtag_set_skey_hostval(skey, host, val):
-	pass
+	(ret, _) = runcmd_with_output(['./mtag_set_skey_hostval', skey, host, val])
+	# TODO ...
 
 def mtag_clear_skey_hostval(skey, host):
-	pass
+	(ret, _) = runcmd_with_output(['./mtag_clear_skey_hostval', skey, host])
+	# TODO ...
 
 #####################
 # cache operations
@@ -184,5 +204,15 @@ def release_lockfile(lock):
 	lock.release()
 
 #####################
+# runcmd 
+
+def runcmd_with_output(cmd_listform):
+	retstr = ""
+	try:
+		retstr = subprocess.check_output(cmd_listform)
+		retval = 0
+	except:
+		retval = 1
+	return retval, retstr
 
 main()

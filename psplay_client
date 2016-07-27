@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import argparse
+import lockfile
 import subprocess
 import sys
 
@@ -40,7 +41,7 @@ import sys
 
 def main():
 	cfg = handle_args()
-	get_lockfile()
+	mylock = get_lockfile(cfg.lockfile)
 	for skey in get_skey_list():
 		# Process this host's skeys
 		expire_old_moratoriums(skey)
@@ -57,9 +58,10 @@ def main():
 			for service in services_linked_to_key(skey):
 				if !atservice_scheduled(skey, service):
 					schedule_atservice(service)
-	release_lockfile()
+	release_lockfile(mylock)
 
 def handle_args():
+	# cfg.cachefile
 	pass
 
 
@@ -125,11 +127,14 @@ def get_offset_for_skey_mtag(skey):
 ###################
 # lockfile operations
 
-def get_lockfile():
-	pass
+def get_lockfile(lf):
+	# See psplay_server
+	lock = LockFile(lf)
+	lock.acquire(timeout=30) # seconds
+	return lock
 
-def release_lockfile():
-	pass
+def release_lockfile(lock):
+	lock.release()
 
 ###################
 

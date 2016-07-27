@@ -143,15 +143,15 @@ def rekey_all_hosts(skey, hosts, cache):
 def get_hosts_for_skey_mtag(skey):
 	""" RO """
 	(ret, hosts) = runcmd_with_output(['./get_hosts_for_skey_mtag', skey])
-	# TODO ...
+	# TODO Error handling
 
 def mtag_set_skey_hostval(skey, host, val):
 	(ret, _) = runcmd_with_output(['./mtag_set_skey_hostval', skey, host, val])
-	# TODO ...
+	# TODO Error handling
 
 def mtag_clear_skey_hostval(skey, host):
 	(ret, _) = runcmd_with_output(['./mtag_clear_skey_hostval', skey, host])
-	# TODO ...
+	# TODO Error handling
 
 #####################
 # cache operations

@@ -87,18 +87,39 @@ def get_hosts_for_skey_mtag(skey):
 	""" RO """
 	pass
 
-def successors_keyswap(skey, cache, hosts, oldhosts):
-	""" RW, rewrite cache object and mtag-sync the changes
-	The purpose of this is, for every host in hosts that doesn't exist
-        in oldhosts, designate it as the unique successor of a host in oldhosts
-	that isn't in newhosts, giving it the same offset as what it replaces.
-	We rewrite the cache object and update mtags as we go """
+def mtag_set_skey_hostval(skey, host, val):
 	pass
+
+def mtag_clear_skey_hostval(skey, host):
+	pass
+
+#####################
+# operations
+def successors_keyswap(skey, cache, hosts, oldhosts):
+	""" RW, Alter cache and mtag store so new hosts will each
+	exactly replace a retired host. This assumes the number of new
+	hosts equals the number of retired hosts. """
+	exclusive_new = set(hosts) - set(oldhosts)
+	exclusive_old = set(oldhosts) - set(hosts)
+	for idx in range(0, len(exclusive_old) - 1):
+		val = cache[skey][exclusive_old[idx]]
+		cache[skey][exclusive_new[idx]] = val
+		del cache[skey][exclusive_old[idx]]
+		mtag_clear_skey_hostval(skey, host)
+		mtag_set_skey_hostval(skey, host, val)
 
 def rekey_all_hosts(skey, hosts, cache):
 	""" RW, rewrite cache object and mtag-sync as we go.
 	This is used when we need to re-offset everything. """
-	pass
+	num_elems = len(foo)
+	if num_elems == 0:
+		return # Nothing to do, and let's not divide by zero
+	offset = 1 / num_elems
+	ctr = 0
+	for host in hosts:
+		cache[skey][host] = ctr # Update cache
+		mtag_set_skey_hostval(skey, host, val) # Then update mtag
+		ctr += offset # Prep for next
 
 #####################
 # cache operations

@@ -1,1 +1,15 @@
 psplay aims to be a perfect splayer
+
+Splaying (also known as jittering) is, for a whole bunch of hosts that run a
+job, the adjustment of their timing for that job so they don't all perform it
+at the same time, usually in order to prevent them from ganging up on some
+resource and exhausting it. An ideal splay usually would arrange their launching
+of those jobs so the distance between them across the cluster is maximised.
+
+psplay is a bit of code that runs on a client and a server that aims to
+implement this, knowing that occasionally hosts are added or removed from that
+list that runs the job; it attempts to do the right thing in such circumstances.
+
+Note that multiple jobs can share the same "splay" key and have an offset from
+it; this can be used to enforce a sequence (although any mechanisms to track
+job failures or dependencies are out-of-scope for this tool).

@@ -41,10 +41,12 @@ import sys
 
 def main():
 	cfg = handle_args()
+	morat = load_moratoria(cfg.mordir) # RO-cache
 	mylock = get_lockfile(cfg.lockfile)
 	for skey in get_skey_list():
+		sdef = load_sdef(skey, cfg.sdefdir) # RO-cache
 		# Process this host's skeys
-		expire_old_moratoriums(skey)
+		expire_old_moratoriums(skey, morat, cfg.mordir)
 		oldval = get_offset_for_skey_cache(skey)
 		newval = get_offset_for_skey_mtag(skey)
 		if oldval != newval: # Be careful comparing fractions!
@@ -53,8 +55,8 @@ def main():
 				if atservice_scheduled(skey, service):
 					deschedule_atservice(service)
 			if newval < oldval:
-				set_moratorium(skey, oldval, newval)
-		if (! in_moratorium(skey)):
+				set_moratorium(skey, oldval, newval, morat, cfg.mordir)
+		if (! in_moratorium(skey, morat)):
 			for service in services_linked_to_key(skey):
 				if !atservice_scheduled(skey, service):
 					schedule_atservice(service)
@@ -62,17 +64,31 @@ def main():
 
 def handle_args():
 	# cfg.cachefile
+	# cfg.mordir - moratorium dir (no user servicable parts)
+	# cfg.sdefdir - service definition dir
 	pass
 
 
 ###################
-# skeylist operations
+# service definition operations
+#
+# Long-term storage is a directory of config files, one per skey
+# Each config file defines a hash of hashes:
+#	atservice_name =>
+#		'cmd' => command
+#		'offset' => offset
+#		'freq' => frequency_definition (in seconds)
+#
+# load_sdef() will load one of these and, parsing each one and returning
+# a data structure that matches that. This tool only consumes service
+# definitions; these are written by some external process (such as a config
+# management tool). 
+
+def load_sdef(skey, cfgdir):
+	pass
 
 def get_skey_list():
 	pass
-
-###################
-# service enumeration
 
 def services_linked_to_key(skey):
 	pass
@@ -93,14 +109,20 @@ def get_service_offset(skey, service):
 
 ###################
 # moratorium operations
+#
+# Long-term storage is in a directory, but we'll load/parse a RO copy
+# when the program starts up. The directory has one file per skey
 
-def set_moratorium(skey, oldval, newval):
+def set_moratorium(skey, oldval, newval, mcache, mdir):
 	pass
 
-def expire_old_moratoriums(skey):
+def expire_old_moratoriums(skey, mcache, mdir):
 	pass
 
-def in_moratorium(skey):
+def in_moratorium(skey, mcache):
+	pass
+
+def load_moratoria(mdir):
 	pass
 
 ###################

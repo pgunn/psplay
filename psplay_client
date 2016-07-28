@@ -157,7 +157,47 @@ def real_schedule_time(skey, atservice):
 ####
 # Internal "at" functions
 
+def get_all_atjobs():
+	""" Returns all jobs that at can see, as a string list"""
+	(cmdret, res) = runcmd_with_output(["atq"])
+	ret = []
+	for line in res:
+		(atidx, _) = string.split(line, maxsplit=1)
+		ret.extend(atidx)
+	return ret
 
+def describe_atjob(atjid):
+	""" Pass in the numeric id at uses to refer to a job.
+	Returns a list: (skey, atsvc, cmdline) """
+	(cmdret, res) = runcmd_with_output(["at", "-c", atjid])
+	magicline = ""
+	for line in res:
+		if line.startswith("SKEY="):
+			# TODO: insert extraction logic here
+			pass
+		elif line.startswith("ATSVC="):
+			# TODO: insert extraction logic here
+			pass
+		if line.rstrip() != "":
+			magicline = line
+	# Post-loop:
+	# 	magicline holds the last nonblank line
+	#	we've had time to extract the saved values of skey and atsvc
+
+	# TODO: Actually return the right thing after we've finished plumbing
+
+def at_status():
+	""" Returns a data structure summarising what is in at
+	Note that this is very dependent on the syntax of the at
+	command on the system.
+
+	Structure is (presently a hash):
+		skey => [atjid, ...]
+	We don't currently stash the "atsvc" value into this, even though
+	we put it into at for later retrieval. If we develop a use for it,
+	we'll extract and expose it """
+	pass
+		
 
 ###################
 # moratorium operations

@@ -58,15 +58,13 @@ def main():
 		newval = get_offset_for_skey_mtag(skey)
 		if oldval != newval: # Be careful comparing fractions!
 			cache_setval(skey, newval, cfg.cachefile)
-			for service in services_linked_to_key(sdef):
-				if atservice_scheduled(skey, service):
-					deschedule_atservice(service)
+			deschedule_atservices_with_skey(skey)
 			if newval < oldval:
 				set_moratorium(skey, newval, morat, cfg.morfile)
 		if (! in_moratorium(skey, morat)):
 			for service in services_linked_to_key(skey):
 				if !atservice_scheduled(skey, service):
-					schedule_atservice(service)
+					schedule_atservice(skey, sdef, service)
 	release_lockfile(mylock)
 
 def handle_args():
@@ -114,23 +112,52 @@ def services_linked_to_key(sdef):
 def get_atservice_offset(sdef, atsvc):
 	return sdef[atsvc]['offset']
 
-def get_atservice_offset(skey, atsvc):
-	""" Return offset-in-seconds that this host will run this atservice at.
-	We don't do anything clever with modulus operations; scheduler
-	functions will handle that """
-	return get_skey_offset_for_this_host(skey) + get_atservice_offset(atsvc)
-
 ####
 # And the scheduling-specific parts of that
+#
+# Operationally:
+# We can use "atq" to get a list of jobids, and
+# "at -c jobid"
+# to read the contents of a job. The latter is very noisy.
+# "atrm" can remove a job.
+#
+# It'd be tempting to use job queues so we can efficiently delete
+# lots of jobs at once, but there are only 26 of those and they also have
+# semantic significance that I don't want to think about.
+#
+# The interface that "at" gives is pretty awful in that we need
+# parsing of a job to find the actual command, but we can stash the service
+# key in the environment, which is kinda handy!
 
-def deschedule_atservice(service):
+def deschedule_atservices_with_skey(skey):
 	pass
 
-def schedule_atservice(service):
+def schedule_atservice(skey, service, servicename):
+	# echo job | at -M time -f /dev/fd/0
+	os.environ["SKEY"] = skey # Preserves it in the "at" job!
+	os.environ["ATSVC"] = servicename
+	stime = real_schedule_time(skey, service)
+	runcmd(["/bin/bash", "-c", "echo \"" + service['cmd'] + "\" | at " + stime + " -f /dev/fd/0"])
+	# TODO: Figure out a better way to do the above
+	del os.environ["SKEY"]
+	del os.environ["ATSVC"]
 	pass
 
 def atservice_scheduled(skey, service):
 	pass
+
+def real_schedule_time(skey, atservice):
+	""" Returns the actual time a service should next run """
+	# This is based on:
+	#	The skey+machine specific offset, which is a 0-1 fraction
+	#	The atservice-specific offset, which is seconds
+	#	The skey specific frequency
+	#	The current time
+
+####
+# Internal "at" functions
+
+
 
 ###################
 # moratorium operations
@@ -223,7 +250,10 @@ def runcmd_with_output(cmd_listform):
         except:                                                                 
                 retval = 1                                                      
         return retval, retstr                                                   
-                                                                                
+
+def runcmd(cmd_listform):
+	return subprocess.call(cmd_listform)
+
 main() 
 
 

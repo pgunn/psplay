@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 
 ###########
 # psplay_client is the "client" component of psplay - it runs frequently from
@@ -41,19 +42,22 @@ import sys
 #	moratorium file
 #	old attribute cache
 #	at - reads, schedules, cancels
+#
+# Improvements possible:
+#	* The handling of cachefiles can be made more efficient
 
 def main():
 	cfg = handle_args()
 	morat = load_moratoria(cfg.morfile) # RO-cache
+	expire_old_moratoriums(morat, cfg.morfile)
 	mylock = get_lockfile(cfg.lockfile)
 	for skey in get_skey_list(cfg.sdefdir):
 		sdef = load_sdef(skey, cfg.sdefdir) # RO-cache
 		# Process this host's skeys
-		expire_old_moratoriums(skey, morat, cfg.morfile)
-		oldval = get_offset_for_skey_cache(skey)
+		oldval = get_offset_for_skey_cache(skey, cfg.cachefile)
 		newval = get_offset_for_skey_mtag(skey)
 		if oldval != newval: # Be careful comparing fractions!
-			cache_setval(skey, newval)
+			cache_setval(skey, newval, cfg.cachefile)
 			for service in services_linked_to_key(sdef):
 				if atservice_scheduled(skey, service):
 					deschedule_atservice(service)
@@ -141,16 +145,28 @@ def load_moratoria(mfile):
 		ret = json.load(mfh)
 	return ret
 
-def set_moratorium(skey, oldval, newval, mcache, mfile):
+def expire_old_moratoriums(mcache, mdir):
+	changed = False
+	for skey in mcache.keys():
+		if mcache[skey] > int(time.time())
+			del mcache[skey]
+			changed = True
+	if changed:
+		with open(mfile, 'w') as mfh:
+			json.dump(mcache, mfh)
+
+def set_moratorium(skey, newval, mcache, mfile):
 	mcache[skey] = newval
 	with open(mfile, 'w') as mfh:
-		json.dump(mcache, mfile)
-
-def expire_old_moratoriums(skey, mcache, mdir):
-	pass
+		json.dump(mcache, mfh)
 
 def in_moratorium(skey, mcache):
-	pass
+	# We've already expired old moratoria, so if there's an entry, we're
+	# in one. XXX Revise if this is ever run as part of a long-running process,
+	# but if that happens we also need to change the expiry logic
+	if skey in mcache.keys():
+		return True
+	return False
 
 
 ###################
@@ -158,18 +174,31 @@ def in_moratorium(skey, mcache):
 
 ###################
 # local mtag cache operations
+#
+# This manipulates a hash on disk that stores old mtag values so we can spot
+# config changes upstream and react to them when they happen. This initial
+# implementation is inefficient.
 
-def get_offset_for_skey_cache(skey):
-	pass
+def get_offset_for_skey_cache(skey, cachefile):
+	with open(cachefile, 'r') as cfh:
+		cache = json.load(cfh)
+	return cache[skey]	# I think if it wasn't defined before, 
+				# the compare will still work out right
 
-def cache_setval(skey, newval):
-	pass
+def cache_setval(skey, newval, cachefile):
+	with open(cachefile, 'r') as cfh:
+		cache = json.load(cfh)
+	cache[skey] = newval
+	with open(cachefile, 'w') as cfh:
+		cache = json.dump(cache, cfh)
+
 
 ###################
 # mtag operations
 
 def get_offset_for_skey_mtag(skey):
-	pass
+	""" RO """
+	(ret, offset) = runcmd_with_output(['./get_hosts_for_skey_mtag', skey])
 
 ###################
 # lockfile operations
@@ -184,5 +213,18 @@ def release_lockfile(lock):
 	lock.release()
 
 ###################
+# runcmd                                                                        
+                                                                                
+def runcmd_with_output(cmd_listform):                                           
+        retstr = ""                                                             
+        try:                                                                    
+                retstr = subprocess.check_output(cmd_listform)                  
+                retval = 0                                                      
+        except:                                                                 
+                retval = 1                                                      
+        return retval, retstr                                                   
+                                                                                
+main() 
+
 
 main()

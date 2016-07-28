@@ -294,7 +294,4 @@ def runcmd_with_output(cmd_listform):
 def runcmd(cmd_listform):
 	return subprocess.call(cmd_listform)
 
-main() 
-
-
 main()

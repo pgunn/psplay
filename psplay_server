@@ -166,7 +166,6 @@ def mtag_clear_skey_hostval(skey, host):
 def skey_getcache(cachejson):
 	with open(cachejson) as json_d:
 		cache = json.load(json_d)
-		json_d.close()
 	return cache
 
 def get_hosts_for_skey_cache(skey, cachejson):
@@ -178,7 +177,6 @@ def cache_store(cacheobj, cachejson):
 	""" W """
 	with open(cachejson, 'w') as json_d:
 		json.dump(cacheobj, json_d)
-		json_d.close()
 
 def cache_clear_skey_hostval(cache, skey, host):
 	del cache[skey][host]

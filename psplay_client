@@ -1,7 +1,10 @@
 #!/usr/bin/python
 
 import argparse
+import json
 import lockfile
+import os
+import re
 import subprocess
 import sys
 
@@ -41,21 +44,21 @@ import sys
 
 def main():
 	cfg = handle_args()
-	morat = load_moratoria(cfg.mordir) # RO-cache
+	morat = load_moratoria(cfg.morfile) # RO-cache
 	mylock = get_lockfile(cfg.lockfile)
-	for skey in get_skey_list():
+	for skey in get_skey_list(cfg.sdefdir):
 		sdef = load_sdef(skey, cfg.sdefdir) # RO-cache
 		# Process this host's skeys
-		expire_old_moratoriums(skey, morat, cfg.mordir)
+		expire_old_moratoriums(skey, morat, cfg.morfile)
 		oldval = get_offset_for_skey_cache(skey)
 		newval = get_offset_for_skey_mtag(skey)
 		if oldval != newval: # Be careful comparing fractions!
 			cache_setval(skey, newval)
-			for service in services_linked_to_key(skey):
+			for service in services_linked_to_key(sdef):
 				if atservice_scheduled(skey, service):
 					deschedule_atservice(service)
 			if newval < oldval:
-				set_moratorium(skey, oldval, newval, morat, cfg.mordir)
+				set_moratorium(skey, newval, morat, cfg.morfile)
 		if (! in_moratorium(skey, morat)):
 			for service in services_linked_to_key(skey):
 				if !atservice_scheduled(skey, service):
@@ -64,7 +67,7 @@ def main():
 
 def handle_args():
 	# cfg.cachefile
-	# cfg.mordir - moratorium dir (no user servicable parts)
+	# cfg.morfile - moratorium file (no user servicable parts)
 	# cfg.sdefdir - service definition dir
 	pass
 
@@ -76,22 +79,45 @@ def handle_args():
 # Each config file defines a hash of hashes:
 #	atservice_name =>
 #		'cmd' => command
-#		'offset' => offset
+#		'offset' => offset (seconds)
 #		'freq' => frequency_definition (in seconds)
 #
 # load_sdef() will load one of these and, parsing each one and returning
-# a data structure that matches that. This tool only consumes service
-# definitions; these are written by some external process (such as a config
-# management tool). 
+# a data structure that matches that. These functions are READONLY; they
+# only consume service definitions; defs are written by some external
+# process (such as a config management tool). 
+#
+# A lot of therse are accessors, but it's easier to change how a function
+# works than rework stuff that looks like base language plumbing
+
+def get_skey_list(dir):
+	""" Return all defined service keys """
+	maybe = os.listdir(dir)
+	ret = []
+	for mayb in maybe: # Ignore non-json files
+		if '.json' in mayb:
+			ret.extend(re.sub(r'\.json$', '', mayb))
+	return ret
 
 def load_sdef(skey, cfgdir):
-	pass
+	with open(cfgdir + '/' + skey + '.json') as jfile:
+		sdef = json.load(jfile)
+	return sfef
 
-def get_skey_list():
-	pass
+def services_linked_to_key(sdef):
+	return sdef.keys()
 
-def services_linked_to_key(skey):
-	pass
+def get_atservice_offset(sdef, atsvc):
+	return sdef[atsvc]['offset']
+
+def get_atservice_offset(skey, atsvc):
+	""" Return offset-in-seconds that this host will run this atservice at.
+	We don't do anything clever with modulus operations; scheduler
+	functions will handle that """
+	return get_skey_offset_for_this_host(skey) + get_atservice_offset(atsvc)
+
+####
+# And the scheduling-specific parts of that
 
 def deschedule_atservice(service):
 	pass
@@ -102,19 +128,23 @@ def schedule_atservice(service):
 def atservice_scheduled(skey, service):
 	pass
 
-def get_service_offset(skey, service):
-	return (get_skey_value(skey) * get_skey_offset_for_this_host(skey)) +
-		get_service_offset(service)
-
-
 ###################
 # moratorium operations
 #
-# Long-term storage is in a directory, but we'll load/parse a RO copy
-# when the program starts up. The directory has one file per skey
+# Long-term storage is in a json file, but we'll load/parse a RO copy
+# when the program starts up. The file is a simple hash:
+#	skey => epochtime
+# epochtime being when the moratorium expires
 
-def set_moratorium(skey, oldval, newval, mcache, mdir):
-	pass
+def load_moratoria(mfile):
+	with open(mfile, 'r') as mfh:
+		ret = json.load(mfh)
+	return ret
+
+def set_moratorium(skey, oldval, newval, mcache, mfile):
+	mcache[skey] = newval
+	with open(mfile, 'w') as mfh:
+		json.dump(mcache, mfile)
 
 def expire_old_moratoriums(skey, mcache, mdir):
 	pass
@@ -122,14 +152,9 @@ def expire_old_moratoriums(skey, mcache, mdir):
 def in_moratorium(skey, mcache):
 	pass
 
-def load_moratoria(mdir):
-	pass
 
 ###################
-# at operations
-
-###################
-# cfgdir operations
+# low-level at operations
 
 ###################
 # local mtag cache operations

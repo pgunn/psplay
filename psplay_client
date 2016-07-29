@@ -60,7 +60,7 @@ def main():
 			cache_setval(skey, newval, cfg.cachefile)
 			deschedule_atservices_with_skey(skey)
 			if newval < oldval:
-				set_moratorium(skey, newval, morat, cfg.morfile)
+				set_moratorium(skey, oldval, morat, cfg.morfile)
 		if (! in_moratorium(skey, morat)):
 			for service in services_linked_to_key(skey):
 				if !atservice_scheduled(skey, service):
@@ -256,8 +256,8 @@ def expire_old_moratoriums(mcache, mdir):
 		with open(mfile, 'w') as mfh:
 			json.dump(mcache, mfh)
 
-def set_moratorium(skey, newval, mcache, mfile):
-	mcache[skey] = newval
+def set_moratorium(skey, val, mcache, mfile):
+	mcache[skey] = val
 	with open(mfile, 'w') as mfh:
 		json.dump(mcache, mfh)
 

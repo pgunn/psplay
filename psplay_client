@@ -153,7 +153,7 @@ def real_schedule_time(skey, atservice):
 	#	The atservice-specific offset, which is seconds
 	#	The skey specific frequency
 	#	The current time
-
+	pass
 ####
 # Internal "at" functions
 
@@ -168,23 +168,28 @@ def get_all_atjobs():
 
 def describe_atjob(atjid):
 	""" Pass in the numeric id at uses to refer to a job.
-	Returns a list: (skey, atsvc, cmdline) """
+	Returns a list: (skey, atsvc, cmdline), first two of which might
+	not be set """
 	(cmdret, res) = runcmd_with_output(["at", "-c", atjid])
 	magicline = ""
 	for line in res:
 		if line.startswith("SKEY="):
-			# TODO: insert extraction logic here
-			pass
+			# Syntax for these lines is:
+			# SKEY=FOO; export SKEY
+			# So if we split by ; and then = we have the value
+			(firstpart, _) = string.split(line, sep=';', maxsplit=1)
+			(_, val) = string.split(firstpart, sep='=', maxsplit=1)
+			skey = val
 		elif line.startswith("ATSVC="):
-			# TODO: insert extraction logic here
-			pass
+			(firstpart, _) = string.split(line, sep=';', maxsplit=1)
+			(_, val) = string.split(firstpart, sep='=', maxsplit=1)
+			atsvc = val
 		if line.rstrip() != "":
 			magicline = line
 	# Post-loop:
 	# 	magicline holds the last nonblank line
 	#	we've had time to extract the saved values of skey and atsvc
-
-	# TODO: Actually return the right thing after we've finished plumbing
+	return skey, atsvc, magicline
 
 def at_status():
 	""" Returns a data structure summarising what is in at
@@ -196,8 +201,19 @@ def at_status():
 	We don't currently stash the "atsvc" value into this, even though
 	we put it into at for later retrieval. If we develop a use for it,
 	we'll extract and expose it """
-	pass
-		
+	atjids = get_all_atjobs()
+	ret = {}
+	for atjid in atjids:
+		(skey, atsvc, magicline) = describe_atjob(atjid)
+		if skey is None: # Not one of ours
+			continue
+		if atsvc is None: # How did this happen.
+			continue
+		if not skey in ret.keys():
+			ret[skey] = []
+		ret[skey].extend(atjid)
+	return ret
+
 
 ###################
 # moratorium operations

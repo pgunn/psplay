@@ -71,7 +71,19 @@ def handle_args():
 	# cfg.cachefile
 	# cfg.morfile - moratorium file (no user servicable parts)
 	# cfg.sdefdir - service definition dir
-	pass
+	optmsgs = {
+		"cachefile" : "Cache of upstream offsets",
+		"morfile" : "Moratorium storage",
+		"sdefdir" : "Service Definitions"
+	}
+	parser = argparse.ArgumentParser()
+	parser.add_argument('--cachefile', help=optmsgs['cachefile'],
+		default='/var/run/psplay_c-cachefile.json')
+	parser.add_argument('--morfile', help=optmsgs['morfile'],
+		default='/var/run/psplay_c-morfile.json')
+	parser.add_argument('--sdefdir', help=optmsgs['sdefdir'],
+		default='/var/run/psplay_c-sdefs')
+	return parser.parse_args()
 
 
 ###################

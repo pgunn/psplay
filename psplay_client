@@ -55,7 +55,7 @@ def main():
 		sdef = load_sdef(skey, cfg.sdefdir) # RO-cache
 		# Process this host's skeys
 		oldval = get_offset_for_skey_cache(skey, cfg.cachefile)
-		newval = get_offset_for_skey_mtag(skey)
+		newval = get_offset_for_skey_mtag(skey, cfg.gofsmcmd)
 		if oldval != newval: # Be careful comparing fractions!
 			cache_setval(skey, newval, cfg.cachefile)
 			deschedule_atservices_with_skey(skey)
@@ -64,7 +64,7 @@ def main():
 		if (! in_moratorium(skey, morat)):
 			for service in services_linked_to_key(skey):
 				if !atservice_scheduled(skey, service):
-					schedule_atservice(skey, sdef, service)
+					schedule_atservice(skey, sdef, service, newval)
 	release_lockfile(mylock)
 
 def handle_args():
@@ -74,7 +74,8 @@ def handle_args():
 	optmsgs = {
 		"cachefile" : "Cache of upstream offsets",
 		"morfile" : "Moratorium storage",
-		"sdefdir" : "Service Definitions"
+		"sdefdir" : "Service Definitions",
+		"gofsmcmd": "Command that, given a skey, returns its offset on this machine"
 	}
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--cachefile', help=optmsgs['cachefile'],
@@ -83,6 +84,8 @@ def handle_args():
 		default='/var/run/psplay_c-morfile.json')
 	parser.add_argument('--sdefdir', help=optmsgs['sdefdir'],
 		default='/var/run/psplay_c-sdefs')
+	parser.add_argument('--gofsmcmd', help=optmsgs['gofsmcmd'],
+		required=True)
 	return parser.parse_args()
 
 
@@ -145,11 +148,11 @@ def deschedule_atservices_with_skey(skey):
 			runcmd(['atrm', str(atjob['jid'])])	# Should already be a string,
 								# but let's be defensive
 
-def schedule_atservice(skey, service, servicename):
+def schedule_atservice(skey, service, servicename, mtagtime):
 	# echo job | at -M time -f /dev/fd/0
 	os.environ["SKEY"] = skey # Preserves it in the "at" job!
 	os.environ["ATSVC"] = servicename
-	zeit = real_schedule_time(skey, service)
+	zeit = real_schedule_time(skey, service, mtagtime)
 	stime = time.strftime('%H:%M %B %d %Y', zeit) # "at" cannot handle seconds!
 	runcmd(["/bin/bash", "-c", "echo \"" + service['cmd'] + "\" | at " + stime + " -f /dev/fd/0"])
 	# TODO: Figure out a better way to do the above
@@ -165,16 +168,15 @@ def atservice_scheduled(skey, atservice):
 			return True
 	return False
 
-def real_schedule_time(skey, sdef):
+def real_schedule_time(skey, sdef, mtagtime):
 	""" Returns the actual epochtime a service should next run """
 	# This is based on:
-	#	The skey+machine specific offset, which is a 0-1 fraction
+	#	The skey+machine specific offset, which is a 0-1 fraction (arg)
 	#	The atservice-specific offset, which is seconds
 	#	The skey specific frequency
 	#	The current time
-	fractional_o = get_offset_for_skey_mtag(skey) # machine specific
 	skey_freq = sdef['freq']
-	dynamic_offset_seconds = fractional_o * skey_freq
+	dynamic_offset_seconds = mtagtime * skey_freq
 	static_offset_seconds = sdef['offset']
 	base = epoch_beginning_today()
 	candidate_time = base + static_offset_seconds + static_offset_seconds
@@ -309,9 +311,9 @@ def cache_setval(skey, newval, cachefile):
 ###################
 # mtag operations
 
-def get_offset_for_skey_mtag(skey):
+def get_offset_for_skey_mtag(skey, cmd):
 	""" RO """
-	(ret, out) = runcmd_with_output(['./get_hosts_for_skey_mtag', skey])
+	(ret, out) = runcmd_with_output([cmd, skey])
 	ret = []
 	for line in out:
 		ret.extend(line.rstrip())

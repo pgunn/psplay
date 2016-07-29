@@ -299,7 +299,11 @@ def cache_setval(skey, newval, cachefile):
 
 def get_offset_for_skey_mtag(skey):
 	""" RO """
-	(ret, offset) = runcmd_with_output(['./get_hosts_for_skey_mtag', skey])
+	(ret, out) = runcmd_with_output(['./get_hosts_for_skey_mtag', skey])
+	ret = []
+	for line in out:
+		ret.extend(line.rstrip())
+	return ret
 
 ###################
 # lockfile operations

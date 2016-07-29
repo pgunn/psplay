@@ -109,9 +109,6 @@ def load_sdef(skey, cfgdir):
 def services_linked_to_key(sdef):
 	return sdef.keys()
 
-def get_atservice_offset(sdef, atsvc):
-	return sdef[atsvc]['offset']
-
 ####
 # And the scheduling-specific parts of that
 #
@@ -130,30 +127,48 @@ def get_atservice_offset(sdef, atsvc):
 # key in the environment, which is kinda handy!
 
 def deschedule_atservices_with_skey(skey):
-	pass
+	atdata = at_status()
+	if skey in atdata.keys():
+		for atjob in atdata[skey]:
+			runcmd(['atrm', str(atjob['jid'])])	# Should already be a string,
+								# but let's be defensive
 
 def schedule_atservice(skey, service, servicename):
 	# echo job | at -M time -f /dev/fd/0
 	os.environ["SKEY"] = skey # Preserves it in the "at" job!
 	os.environ["ATSVC"] = servicename
-	stime = real_schedule_time(skey, service)
+	zeit = real_schedule_time(skey, service)
+	stime = time.strftime('%H:%M %B %d %Y', zeit) # "at" cannot handle seconds!
 	runcmd(["/bin/bash", "-c", "echo \"" + service['cmd'] + "\" | at " + stime + " -f /dev/fd/0"])
 	# TODO: Figure out a better way to do the above
 	del os.environ["SKEY"]
 	del os.environ["ATSVC"]
-	pass
 
-def atservice_scheduled(skey, service):
-	pass
+def atservice_scheduled(skey, atservice):
+	atdata = at_status()
+	if ! skey in atdata.keys():
+		return False
+	for atjob in atdata[skey]:
+		if atjob['atsvc'] == atservice:
+			return True
+	return False
 
-def real_schedule_time(skey, atservice):
-	""" Returns the actual time a service should next run """
+def real_schedule_time(skey, sdef):
+	""" Returns the actual epochtime a service should next run """
 	# This is based on:
 	#	The skey+machine specific offset, which is a 0-1 fraction
 	#	The atservice-specific offset, which is seconds
 	#	The skey specific frequency
 	#	The current time
-	pass
+	fractional_o = get_offset_for_skey_mtag(skey) # machine specific
+	skey_freq = sdef['freq']
+	dynamic_offset_seconds = fractional_o * skey_freq
+	static_offset_seconds = sdef['offset']
+	base = epoch_beginning_today()
+	candidate_time = base + static_offset_seconds + static_offset_seconds
+	while candidate_time < now():
+		candidate_time += skey_freq
+	return candidate_time
 ####
 # Internal "at" functions
 
@@ -197,7 +212,7 @@ def at_status():
 	command on the system.
 
 	Structure is (presently a hash):
-		skey => [atjid, ...]
+		skey => [{'jid' => atjid, 'atsvc' => atsvc }, ... ]
 	We don't currently stash the "atsvc" value into this, even though
 	we put it into at for later retrieval. If we develop a use for it,
 	we'll extract and expose it """
@@ -211,7 +226,10 @@ def at_status():
 			continue
 		if not skey in ret.keys():
 			ret[skey] = []
-		ret[skey].extend(atjid)
+		atjdata = {}
+		atjdata['jid'] = atjid
+		atjdata['atsvc'] = atsvc
+		ret[skey].extend(atjdata)
 	return ret
 
 
